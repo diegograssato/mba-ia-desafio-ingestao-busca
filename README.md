@@ -44,6 +44,57 @@ RESPOSTA: Não tenho informações necessárias para responder sua pergunta.
 - Crie uma API Key da OpenAI.
 - Você vai precisar de um modelo de embeddings e de um modelo de LLM para responder. Consulte a documentação oficial da OpenAI para ver os modelos disponíveis.
 
+## Uso da Azure
+
+Esta implementação usa o **Azure OpenAI / Azure AI Foundry** para duas tarefas:
+
+- gerar os embeddings dos chunks durante a ingestão;
+- gerar a resposta final do chat a partir dos chunks recuperados.
+
+O PostgreSQL com pgVector não é provisionado na Azure neste laboratório: ele é executado localmente pelo `docker-compose.yml`. O fluxo é:
+
+```text
+document.pdf -> PyPDFLoader -> chunks -> Azure OpenAI (embeddings)
+             -> PostgreSQL/pgVector -> busca por similaridade
+             -> Azure OpenAI (chat) -> resposta no terminal
+```
+
+### Recursos e deployments
+
+No Azure AI Foundry ou no recurso Azure OpenAI, crie dois deployments:
+
+1. um deployment de modelo de chat, como o configurado em `AZURE_OPENAI_DEPLOYMENT`;
+2. um deployment de embeddings, como o configurado em `AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT_NAME`.
+
+O nome do deployment é definido por você na Azure e é esse nome que a API recebe no campo `model`. Ele pode ser diferente do nome do modelo-base.
+
+### Configuração local
+
+Copie o template de configuração e preencha o arquivo `.env` sem versionar a chave:
+
+```bash
+cp .env.example .env
+```
+
+Variáveis utilizadas pela integração Azure:
+
+| Variável | Finalidade | Exemplo de formato |
+|---|---|---|
+| `AZURE_OPENAI_API_KEY` | Chave de acesso ao recurso Azure OpenAI | valor secreto obtido na Azure |
+| `AZURE_OPENAI_BASE_URL` | Endpoint v1 usado pelo modelo de chat | `https://<recurso>.openai.azure.com/openai/v1/` |
+| `AZURE_OPENAI_DEPLOYMENT` | Nome do deployment de chat | `gpt-4.1` |
+| `AZURE_OPENAI_EMBEDDINGS_BASE_URL` | Endpoint v1 usado para embeddings | `https://<recurso>.openai.azure.com/openai/v1/` |
+| `AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT_MODEL` | Modelo informado ao wrapper de embeddings | `text-embedding-3-small` |
+| `AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT_NAME` | Nome exato do deployment de embeddings na Azure | `text-embedding-3-small` |
+
+Se chat e embeddings estiverem no mesmo recurso, os dois `BASE_URL` podem ter o mesmo valor. Mantenha a barra final e o sufixo `/openai/v1/`.
+
+As variáveis `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_MODEL` e `AZURE_OPENAI_EMBEDDINGS_DEPLOYMENT` permanecem no template por compatibilidade, mas não são lidas pelo código atual.
+
+> Segurança: nunca envie o `.env` ou a API key ao repositório. Em produção, prefira autenticação com Microsoft Entra ID e um cofre de segredos, além de limites de custo e monitoramento no recurso Azure.
+
+Referência: [documentação da API v1 do Azure OpenAI](https://learn.microsoft.com/azure/ai-foundry/openai/api-version-lifecycle).
+
 ## Gemini
 
 - Crie uma API Key da Google.
@@ -132,6 +183,15 @@ source venv/bin/activate
 
 ## Ordem de execução
 
+0. Instalar as dependências e configurar o ambiente:
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Preencha no `.env` a conexão do PostgreSQL, o caminho do PDF e as variáveis Azure descritas acima.
+
 1. Subir o banco de dados:
 
 ```
@@ -153,3 +213,9 @@ python src/chat.py
 ## Entregável
 
 Repositório público no GitHub contendo todo o código-fonte e README com instruções claras de execução do projeto.
+
+## Referência complementar
+
+Como material complementar sobre LangChain e os conceitos utilizados neste projeto, consulte o curso que ministrei:
+
+- [LangChain for Beginners](https://github.com/diegograssato/langchain-for-beginners)
